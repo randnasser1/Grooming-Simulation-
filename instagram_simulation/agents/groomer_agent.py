@@ -60,55 +60,82 @@ class GroomerAgent:
         return response
 
     def ollama_generate(self, prompt):
-        """Generate response using local Ollama with gemma:2b"""
-        try:
-            response = requests.post(
-                f'{OLLAMA_URL}/api/generate',
-                json={
-                    'model': "gemma:2b",  # Force gemma:2b
-                    'prompt': prompt,
-                    'stream': False,
-                    'options': {
-                        'temperature': 0.8,  # Higher temperature for more variety
-                        'num_predict': 80,
-                        'top_k': 40,
-                        'top_p': 0.9
-                    }
-                },
-                timeout=30
-            )
+    """Generate response using local Ollama with gemma:2b - FIXED"""
+    try:
+        print(f"🤖 Sending prompt to Ollama (gemma:2b)...")
+        
+        response = requests.post(
+            f'{OLLAMA_URL}/api/generate',
+            json={
+                'model': "gemma:2b",
+                'prompt': prompt,
+                'stream': False,
+                'options': {
+                    'temperature': 0.8,
+                    'num_predict': 80,
+                    'top_k': 40,
+                    'top_p': 0.9
+                }
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
             result = response.json()
-            return result.get('response', '').strip()
-        except Exception as e:
-            print(f"Ollama error: {e}")
-            # Creative fallback responses based on stage
-            stage_messages = {
-                "FRIENDSHIP_BUILDING": [
-                    "What games do you like to play?",
-                    "I saw you like Roblox, what's your favorite game?",
-                    "Do you have any pets?",
-                    "What's your favorite thing to do after school?"
-                ],
-                "PERSONAL_INFO": [
-                    "That sounds fun! What did you do in school today?",
-                    "Cool! Who do you usually hang out with?",
-                    "What kind of music are you into?",
-                    "Do you have any siblings?"
-                ],
-                "SECRECY_ESTABLISHMENT": [
-                    "We have such cool conversations, it's our little secret",
-                    "You're way more fun to talk to than people my age",
-                    "I feel like I can tell you anything"
-                ],
-                "MEETUP_PRESSURE": [
-                    "It would be so cool to hang out sometime",
-                    "We should meet up and play games together",
-                    "You're my favorite person to talk to"
-                ]
-            }
-            current_stage = "FRIENDSHIP_BUILDING" if self.message_count < 20 else "PERSONAL_INFO" if self.message_count < 50 else "SECRECY_ESTABLISHMENT" if self.message_count < 80 else "MEETUP_PRESSURE"
-            import random
-            return random.choice(stage_messages[current_stage])
+            response_text = result.get('response', '').strip()
+            
+            if response_text:
+                print(f"✅ Ollama response: '{response_text}'")
+                return response_text
+            else:
+                print("❌ Ollama returned empty response")
+                return self._get_fallback_response()
+        else:
+            print(f"❌ Ollama API error: {response.status_code}")
+            return self._get_fallback_response()
+            
+    except Exception as e:
+        print(f"❌ Ollama connection error: {e}")
+        return self._get_fallback_response()
+    def _get_fallback_response(self):
+        """Get creative fallback responses based on stage"""
+        current_stage = "FRIENDSHIP_BUILDING" if self.message_count < 20 else "PERSONAL_INFO" if self.message_count < 50 else "SECRECY_ESTABLISHMENT" if self.message_count < 80 else "MEETUP_PRESSURE"
+        
+        stage_messages = {
+            "FRIENDSHIP_BUILDING": [
+                "That's awesome about your Roblox profile! What's your favorite game to play?",
+                "Cool! I love Roblox too. What's your username?",
+                "Nice! Do you have any pets? I have a dog named Max.",
+                "What's your favorite thing to do after school?",
+                "Do you like playing any other games besides Roblox?",
+                "What kind of music do you listen to while gaming?"
+            ],
+            "PERSONAL_INFO": [
+                "That sounds fun! What did you learn in school today?",
+                "Cool! Who do you usually play Roblox with?",
+                "What's your favorite subject in school?",
+                "Do you have any brothers or sisters?",
+                "What do you want to be when you grow up?",
+                "What's the most exciting thing you've done lately?"
+            ],
+            "SECRECY_ESTABLISHMENT": [
+                "You're so much fun to talk to! It feels like we have our own little world",
+                "I feel like I can tell you anything, you're such a good listener",
+                "Our conversations are the best part of my day, no one else gets me like you do",
+                "You're way more mature and interesting than people my age"
+            ],
+            "MEETUP_PRESSURE": [
+                "It would be so cool to meet up and play Roblox together sometime",
+                "We should hang out in person, I bet we'd have so much fun",
+                "You're my favorite person to talk to, we should meet up soon",
+                "I feel like we're really close friends, we should meet in real life"
+            ]
+        }
+        
+        import random
+        fallback = random.choice(stage_messages[current_stage])
+        print(f"🔄 Using fallback: '{fallback}'")
+        return fallback
 
     def track_metrics(self, text):
         text_lower = text.lower()
@@ -129,3 +156,4 @@ class GroomerAgent:
 
     def get_metrics(self):
         return self.psychological_metrics
+
