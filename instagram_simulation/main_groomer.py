@@ -1,9 +1,9 @@
-# main_groomer.py - FIXED VERSION (Reads actual messages + initiates)
+# main_groomer.py - COMPLETE FIXED VERSION
 #!/usr/bin/env python3
 """
 GROOMER ACCOUNT SIMULATION - LAPTOP 2 - READS ACTUAL MESSAGES + INITIATES
 """
-from appium.webdriver.common.appiumby import AppiumBy
+
 import time
 import schedule
 import random
@@ -13,14 +13,15 @@ from appium_bot.instagram_bot import InstagramBot
 from utils.persistence import StateManager
 from utils.error_handler import ErrorHandler
 from config.settings import *
+from appium.webdriver.common.appiumby import AppiumBy
 
 class GroomerSimulation:
     def __init__(self):
         self.state_manager = StateManager("groomer")
         self.error_handler = ErrorHandler("groomer")
-        self.bot = None  # Single bot instance
-        self.is_in_chat = False  # Track if we're already in chat
-        self.last_seen_messages = []  # Track messages we've already seen
+        self.bot = None
+        self.is_in_chat = False
+        self.last_seen_messages = []
         self.initialize_simulation()
 
     def initialize_simulation(self):
@@ -37,11 +38,9 @@ class GroomerSimulation:
             self.last_seen_messages = []
             print("🆕 Created new groomer simulation state")
 
-        # Initialize bot once at startup
         self.initialize_bot()
         self.setup_schedule()
         
-        # Run immediate session
         print("🎬 Running initial groomer session...")
         self.run_session("Groomer Initial Start")
 
@@ -51,7 +50,6 @@ class GroomerSimulation:
             print("📱 Initializing Instagram bot...")
             self.bot = InstagramBot("groomer_account")
             
-            # Navigate to chat once at startup
             print("🚀 Navigating to chat (one-time setup)...")
             if self.bot.navigate_to_chat(PARTNER_USERNAME):
                 self.is_in_chat = True
@@ -66,7 +64,6 @@ class GroomerSimulation:
 
     def setup_schedule(self):
         """Groomer's strategic messaging schedule"""
-        # Frequent sessions for active grooming
         schedule.every(2).minutes.do(self.run_session, "Groomer Active")
         schedule.every().day.at("15:45").do(self.run_session, "After School")
         schedule.every().day.at("19:30").do(self.run_session, "Evening")
@@ -75,87 +72,70 @@ class GroomerSimulation:
         print("📅 Groomer schedule set - active every 2 minutes")
 
     def ensure_in_chat(self):
-        """Ensure we're still in chat, only re-navigate if necessary"""
+        """Ensure we're still in chat"""
         if not self.is_in_chat:
             print("🔄 Not in chat, re-navigating...")
             if self.bot.navigate_to_chat(PARTNER_USERNAME):
                 self.is_in_chat = True
                 print("✅ Re-established chat connection")
             else:
-                print("❌ Failed to re-establish chat connection")
                 return False
         return True
 
     def read_messages_from_screen(self):
-    """Read actual messages from the chat screen"""
-    try:
-        print("🔍 Reading ALL text elements from screen...")
-        time.sleep(2)
-        
-        # Get ALL text elements on screen to see what's available
-        all_text_elements = self.bot.driver.find_elements(AppiumBy.XPATH, "//android.widget.TextView")
-        
-        print(f"📄 Found {len(all_text_elements)} text elements on screen:")
-        
-        all_texts = []
-        for i, element in enumerate(all_text_elements):
-            try:
-                text = element.text.strip()
-                if text and text not in ['', 'Message']:
-                    all_texts.append(text)
-                    print(f"   {i+1}. '{text}'")
-            except:
-                continue
-        
-        # Try specific Instagram message selectors
-        message_selectors = [
-            "//android.widget.TextView[@resource-id='com.instagram.android:id/row_message_text']",
-            "//android.widget.TextView[contains(@resource-id, 'message_text')]",
-            "//android.widget.TextView[contains(@resource-id, 'row_message')]",
-            "//android.view.ViewGroup[contains(@resource-id, 'message_container')]//android.widget.TextView",
-            "//android.widget.TextView[contains(@text, '')]",  # All non-empty text
-        ]
-        
-        messages = []
-        for selector in message_selectors:
-            try:
-                elements = self.bot.driver.find_elements(AppiumBy.XPATH, selector)
-                for element in elements:
+        """Read actual messages from the chat screen"""
+        try:
+            print("🔍 Reading ALL text elements from screen...")
+            time.sleep(2)
+            
+            # Get ALL text elements on screen
+            all_text_elements = self.bot.driver.find_elements(AppiumBy.XPATH, "//android.widget.TextView")
+            
+            print(f"📄 Found {len(all_text_elements)} text elements on screen:")
+            
+            # Filter for actual chat messages (not profile info)
+            chat_messages = []
+            for i, element in enumerate(all_text_elements):
+                try:
                     text = element.text.strip()
-                    if text and len(text) > 1 and text not in ['Message', '']:
-                        messages.append(text)
-                print(f"✅ Selector '{selector}' found {len(elements)} elements")
-            except Exception as e:
-                print(f"❌ Selector failed: {e}")
-                continue
-        
-        # Remove duplicates and filter
-        unique_messages = list(set(messages))
-        
-        # Filter out messages we've already seen
-        new_messages = []
-        for msg in unique_messages:
-            if (msg and 
-                msg not in self.last_seen_messages and 
-                len(msg) > 1 and 
-                not msg.startswith('http')):
-                new_messages.append(msg)
-        
-        if new_messages:
-            print(f"🎯 Found {len(new_messages)} NEW messages from child:")
-            for msg in new_messages:
-                print(f"   👧 '{msg}'")
+                    if text and text not in ['', 'Message', 'Double tap to ❤']:
+                        # Skip profile information
+                        if any(profile_word in text.lower() for profile_word in 
+                              ['follower', 'follow', 'posts', 'instagram', 'account']):
+                            continue
+                        # Skip timestamps
+                        if any(time_word in text.lower() for time_word in 
+                              ['today', 'yesterday', 'am', 'pm', 'nov', 'dec', 'seen']):
+                            continue
+                        # Only keep actual conversation messages
+                        if len(text) > 5 and len(text) < 100:  # Reasonable message length
+                            chat_messages.append(text)
+                            print(f"   {i+1}. '{text}'")
+                except:
+                    continue
             
-            self.last_seen_messages.extend(new_messages)
-            self.last_seen_messages = self.last_seen_messages[-20:]
-            return new_messages[-1]  # Return most recent
-        
-        print("📭 No new messages from child detected")
-        return None
+            # Filter out messages we've already seen
+            new_messages = []
+            for msg in chat_messages:
+                if msg and msg not in self.last_seen_messages:
+                    new_messages.append(msg)
             
-    except Exception as e:
-        print(f"❌ Error reading screen: {e}")
-        return None
+            if new_messages:
+                print(f"🎯 Found {len(new_messages)} NEW chat messages from child:")
+                for msg in new_messages:
+                    print(f"   👧 '{msg}'")
+                
+                self.last_seen_messages.extend(new_messages)
+                self.last_seen_messages = self.last_seen_messages[-20:]
+                return new_messages[-1]  # Return most recent
+            
+            print("📭 No new chat messages from child detected")
+            return None
+                
+        except Exception as e:
+            print(f"❌ Error reading screen: {e}")
+            return None
+
     def should_initiate_conversation(self):
         """Determine if groomer should start a new conversation"""
         # Groomer initiates frequently (70% chance when no new messages)
@@ -219,15 +199,21 @@ class GroomerSimulation:
                     print("⏳ No child messages - groomer waiting for response...")
 
             # Track grooming stage
-            stage = "FRIENDSHIP" if self.message_count < 50 else "SECRECY" if self.message_count < 100 else "MEETUP"
+            if self.message_count < 20:
+                stage = "FRIENDSHIP_BUILDING"
+            elif self.message_count < 50:
+                stage = "PERSONAL_INFO"
+            elif self.message_count < 80:
+                stage = "SECRECY_ESTABLISHMENT"
+            else:
+                stage = "MEETUP_PRESSURE"
             print(f"📊 Grooming stage: {stage} (Message #{self.message_count})")
 
             # Save state with psychological metrics
             self.state_manager.save_state(
                 self.agent,
                 self.agent.conversation_history,
-                self.message_count,
-                {'last_seen_messages': self.last_seen_messages}
+                self.message_count
             )
             print("💾 Groomer progress saved!")
 
@@ -240,7 +226,7 @@ class GroomerSimulation:
         except Exception as e:
             print(f"❌ Groomer session error: {e}")
             self.error_handler.log_error(e, session_name)
-            self.is_in_chat = False  # Mark as needing re-navigation
+            self.is_in_chat = False
             if self.error_handler.should_retry():
                 print("🔄 Groomer retrying session...")
                 self.run_session(session_name)
@@ -250,7 +236,17 @@ class GroomerSimulation:
         metrics = self.agent.get_metrics()
         metrics['timestamp'] = datetime.now().isoformat()
         metrics['total_messages'] = self.message_count
-        metrics['grooming_stage'] = "FRIENDSHIP" if self.message_count < 50 else "SECRECY" if self.message_count < 100 else "MEETUP"
+        
+        # Determine stage for metrics
+        if self.message_count < 20:
+            stage = "FRIENDSHIP_BUILDING"
+        elif self.message_count < 50:
+            stage = "PERSONAL_INFO"
+        elif self.message_count < 80:
+            stage = "SECRECY_ESTABLISHMENT"
+        else:
+            stage = "MEETUP_PRESSURE"
+        metrics['grooming_stage'] = stage
 
         # Create directory if it doesn't exist
         import os
@@ -278,7 +274,7 @@ class GroomerSimulation:
                     status = "IN CHAT" if self.is_in_chat else "NEEDS NAV"
                     print(f"⏰ Groomer {status} - Messages: {self.message_count}")
                 
-                time.sleep(10)  # Check every 10 seconds
+                time.sleep(10)
                 
             except KeyboardInterrupt:
                 print("\n🛑 Groomer simulation stopped by user")
@@ -295,4 +291,3 @@ class GroomerSimulation:
 if __name__ == "__main__":
     simulation = GroomerSimulation()
     simulation.run()
-
