@@ -3,7 +3,7 @@
 """
 GROOMER ACCOUNT SIMULATION - LAPTOP 2 - READS ACTUAL MESSAGES + INITIATES
 """
-
+from appium.webdriver.common.appiumby import AppiumBy
 import time
 import schedule
 import random
@@ -87,64 +87,75 @@ class GroomerSimulation:
         return True
 
     def read_messages_from_screen(self):
-        """Read actual messages from the chat screen"""
-        try:
-            print("🔍 Reading messages from screen...")
+    """Read actual messages from the chat screen"""
+    try:
+        print("🔍 Reading ALL text elements from screen...")
+        time.sleep(2)
+        
+        # Get ALL text elements on screen to see what's available
+        all_text_elements = self.bot.driver.find_elements(AppiumBy.XPATH, "//android.widget.TextView")
+        
+        print(f"📄 Found {len(all_text_elements)} text elements on screen:")
+        
+        all_texts = []
+        for i, element in enumerate(all_text_elements):
+            try:
+                text = element.text.strip()
+                if text and text not in ['', 'Message']:
+                    all_texts.append(text)
+                    print(f"   {i+1}. '{text}'")
+            except:
+                continue
+        
+        # Try specific Instagram message selectors
+        message_selectors = [
+            "//android.widget.TextView[@resource-id='com.instagram.android:id/row_message_text']",
+            "//android.widget.TextView[contains(@resource-id, 'message_text')]",
+            "//android.widget.TextView[contains(@resource-id, 'row_message')]",
+            "//android.view.ViewGroup[contains(@resource-id, 'message_container')]//android.widget.TextView",
+            "//android.widget.TextView[contains(@text, '')]",  # All non-empty text
+        ]
+        
+        messages = []
+        for selector in message_selectors:
+            try:
+                elements = self.bot.driver.find_elements(AppiumBy.XPATH, selector)
+                for element in elements:
+                    text = element.text.strip()
+                    if text and len(text) > 1 and text not in ['Message', '']:
+                        messages.append(text)
+                print(f"✅ Selector '{selector}' found {len(elements)} elements")
+            except Exception as e:
+                print(f"❌ Selector failed: {e}")
+                continue
+        
+        # Remove duplicates and filter
+        unique_messages = list(set(messages))
+        
+        # Filter out messages we've already seen
+        new_messages = []
+        for msg in unique_messages:
+            if (msg and 
+                msg not in self.last_seen_messages and 
+                len(msg) > 1 and 
+                not msg.startswith('http')):
+                new_messages.append(msg)
+        
+        if new_messages:
+            print(f"🎯 Found {len(new_messages)} NEW messages from child:")
+            for msg in new_messages:
+                print(f"   👧 '{msg}'")
             
-            # Wait for chat to load
-            time.sleep(2)
+            self.last_seen_messages.extend(new_messages)
+            self.last_seen_messages = self.last_seen_messages[-20:]
+            return new_messages[-1]  # Return most recent
+        
+        print("📭 No new messages from child detected")
+        return None
             
-            # Try to find message elements in the chat
-            message_selectors = [
-                "//android.widget.TextView[contains(@resource-id, 'row_message_text')]",
-                "//android.widget.TextView[contains(@text, '')]",
-                "//android.view.ViewGroup[contains(@resource-id, 'row_message_container')]//android.widget.TextView",
-            ]
-            
-            messages = []
-            for selector in message_selectors:
-                try:
-                    message_elements = self.bot.driver.find_elements(AppiumBy.XPATH, selector)
-                    for element in message_elements:
-                        text = element.text.strip()
-                        if text and len(text) > 0 and text not in ['Message', '']:
-                            # Check if it's likely a child message (not sent by groomer)
-                            if any(child_indicator in text.lower() for child_indicator in 
-                                  ['i don\'t know', 'ok', 'haha', 'lol', 'yes', 'no', 'good', 'fine']):
-                                messages.append(text)
-                    if messages:
-                        break
-                except Exception as e:
-                    continue
-            
-            # Filter out empty messages and get only new ones
-            new_messages = []
-            for msg in messages:
-                if (msg and 
-                    msg not in self.last_seen_messages and 
-                    len(msg) > 2 and 
-                    not msg.startswith('http')):
-                    new_messages.append(msg)
-            
-            if new_messages:
-                print(f"📨 Found {len(new_messages)} new message(s) from child")
-                for msg in new_messages:
-                    print(f"   👧 '{msg}'")
-                
-                # Update last seen messages
-                self.last_seen_messages.extend(new_messages)
-                # Keep only recent messages to avoid memory issues
-                self.last_seen_messages = self.last_seen_messages[-20:]
-                
-                return new_messages[-1]  # Return the most recent message
-            else:
-                print("📭 No new messages from child")
-                return None
-                
-        except Exception as e:
-            print(f"❌ Error reading messages from screen: {e}")
-            return None
-
+    except Exception as e:
+        print(f"❌ Error reading screen: {e}")
+        return None
     def should_initiate_conversation(self):
         """Determine if groomer should start a new conversation"""
         # Groomer initiates frequently (70% chance when no new messages)
@@ -284,3 +295,4 @@ class GroomerSimulation:
 if __name__ == "__main__":
     simulation = GroomerSimulation()
     simulation.run()
+
