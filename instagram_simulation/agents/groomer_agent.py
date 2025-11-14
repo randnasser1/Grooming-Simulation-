@@ -54,23 +54,27 @@ def generate_message(self, received_message=None):
 
     return response
     def ollama_generate(self, prompt):
-        """Generate response using local Ollama"""
-        try:
-            response = requests.post(
-                f'{OLLAMA_URL}/api/generate',
-                json={
-                    'model': OLLAMA_MODEL,
-                    'prompt': prompt,
-                    'stream': False,
-                    'options': {
-                        'temperature': 0.7,
-                        'num_predict': 60
-                    }
+    """Generate response using local Ollama"""
+    try:
+        response = requests.post(
+            f'{OLLAMA_URL}/api/generate',
+            json={
+                'model': OLLAMA_MODEL,
+                'prompt': prompt,
+                'stream': False,
+                'options': {
+                    'temperature': 0.7 if 'groomer' in str(type(self)).lower() else 0.8,
+                    'num_predict': 60 if 'groomer' in str(type(self)).lower() else 50
                 }
-            )
-            return response.json()['response'].strip()
-        except Exception as e:
-            print(f"Ollama error: {e}")
+            }
+        )
+        return response.json()['response'].strip()
+    except Exception as e:
+        print(f"Ollama error: {e}")
+        # Fallback responses
+        if 'child' in str(type(self)).lower():
+            return "idk what to say lol"
+        else:
             return "Hey, how are you?"
 
     def track_metrics(self, text):
@@ -92,4 +96,5 @@ def generate_message(self, received_message=None):
 
     def get_metrics(self):
         return self.psychological_metrics
+
 
